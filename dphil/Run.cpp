@@ -1,4 +1,5 @@
-#include "ppn.h"
+#include "dphil.h"
+#include "dphil_pinit.h"
 
 #include <HostLink.h>
 #include <POLite.h>
@@ -12,14 +13,7 @@
 #define DEFAULT_NUM_DEVS 100
 #define DEFAULT_TIME_LIMIT 10000
 #define TIME_LIMIT_TOTAL 0
-
-#define WATCH_PLACE 0
-#define SHOW_RESULTS 0
-
-const uint8_t initPlaces[MAX_PLACES] = {
-	1, 1, 0, 0, 0, 1, 1, 0, 0
-};
-const uint16_t tileInitPlaces = 9;
+#define SEED 12345L
 
 int main(int argc, char**argv)
 {
@@ -51,7 +45,7 @@ int main(int argc, char**argv)
 	gettimeofday(&startAll, NULL);
 
 	printf("Creating graph...\n");
-	PGraph<PPNDevice, PPNState, None, PPNMessage> graph;
+	PGraph<DPhilDevice, DPhilState, None, DPhilMessage> graph;
 	for(uint32_t i=0; i<numDevs; i++) {
 		PDeviceId id = graph.newDevice();
 		assert(i == id);
@@ -73,27 +67,26 @@ int main(int argc, char**argv)
 	// graph.mapEdgesToDRAM = true;
 	graph.map(); // TODO: manually
 
+	uint64_t seed = SEED;
 	for(uint32_t i=0; i<numDevs; i++) {
-		PPNState* dev = &graph.devices[i]->state;
+		DPhilState* dev = &graph.devices[i]->state;
 		dev->dev = i;
+		seed = (seed * 0x5DEECE66DLL + 0xBLL) & ((1LL << 48LL) - 1LL);
+		dev->seed = seed + (i*23);
 		dev->timeLimit = timeLimitPerDev + (i<timeLimitRemainder ? 1 : 0);
-		dev->watchPlace = WATCH_PLACE;
-		//memcpy(dev->places, initPlaces, sizeof(initPlaces));
-		for(uint16_t p=0; p<MAX_PLACES; p++) {
+		for(uint16_t p=0; p<localPlaces+outPlaces; p++) {
 			if(p<localPlaces)
 				dev->places[p] = initPlaces[p%tileInitPlaces];
 			else
 				dev->places[p] = 0;
 		}
 		
-		dev->outMap[0].dev = i<numDevs-1 ? i+1 : 0;
-		dev->outMap[0].place = localPlaces+2;
-		dev->outMap[1].dev = i<numDevs-1 ? i+1 : 0;
-		dev->outMap[1].place = localPlaces+3;
-		dev->outMap[2].dev = i>0 ? i-1 : numDevs-1;
-		dev->outMap[2].place = localPlaces+0;
-		dev->outMap[2].dev = i>0 ? i-1 : numDevs-1;
-		dev->outMap[2].place = localPlaces+1;
+		uint32_t prev = i>0 ? i-1 : numDevs-1;
+		uint32_t next = i<numDevs-1 ? i+1 : 0;
+		for(uint16_t p=0; p<outPlaces; p++) {
+			dev->outMap[p].dev = tOutMap[p].dev==1 ? next : prev;
+			dev->outMap[p].place = tOutMap[p].place;
+		}
 	}
 
 	graph.write(&hostLink);
@@ -107,17 +100,18 @@ int main(int argc, char**argv)
 
 	politeSaveStats(&hostLink, "stats.txt");
 
+	uint32_t countLocked = 0;
 	for(uint32_t i = 0; i < graph.numDevices; i++) {
-		PMessage<PPNMessage> msg;
+		PMessage<DPhilMessage> msg;
 		hostLink.recvMsg(&msg, sizeof(msg));
 		if(i == 0) {
 			gettimeofday(&finishCompute, NULL);
-			printf("%d steps, place[%d]=%d\n", msg.payload.dev, WATCH_PLACE, msg.payload.st);
+			printf("%d steps, %d\n", msg.payload.dev, msg.payload.place);
 		}
-		#if SHOW_RESULTS
-			printf("%d: %d\n", msg.payload.dev, msg.payload.st);
-		#endif
+		if(msg.payload.dev < timeLimitPerDev)
+			countLocked++;
 	}
+	printf("Locked %d of %d\n", countLocked, graph.numDevices);
 
 	struct timeval diff;
 	double duration;

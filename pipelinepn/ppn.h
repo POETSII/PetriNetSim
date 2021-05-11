@@ -82,7 +82,7 @@ struct PPNDevice : PDevice<PPNState, None, PPNMessage> {
 
 	inline void updPlace(uint16_t p, uint8_t st) {
 		s->placesUpd[p] = st;
-		s->changed[p] = st;
+		s->changed[p] = 1;
 	}
 
 	inline bool step() {
@@ -137,7 +137,8 @@ struct PPNDevice : PDevice<PPNState, None, PPNMessage> {
 			return false;
 
 		if(s->live || s->countChanges>0) {
-			*readyToSend = Pin(0);
+			if(s->countChanges>0)
+				*readyToSend = Pin(0);
 			return true;
 		}
 		else
