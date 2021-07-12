@@ -7,12 +7,12 @@
 #include <sys/time.h>
 #include <config.h>
 
-#define XBOXES 2
+#define XBOXES 1
 #define YBOXES 1
 
 #define DEFAULT_NUM_DEVS 100
 #define DEFAULT_TIME_LIMIT 10000
-#define TIME_LIMIT_TOTAL 0
+#define TIME_LIMIT_TOTAL 2
 #define SEED 12345L
 
 int main(int argc, char**argv)
@@ -23,7 +23,14 @@ int main(int argc, char**argv)
 	}
 	printf("numDevs: %u (total places: %.2lfM)\n", numDevs, (double)(numDevs*(localPlaces+outPlaces/2))/1.0e6);
 	
-	#if TIME_LIMIT_TOTAL
+	#if (TIME_LIMIT_TOTAL==2)
+		uint64_t timeLimitPerDev = DEFAULT_TIME_LIMIT;
+		if(argc>2) {
+			timeLimitPerDev = atol(argv[2]);
+		}
+		uint64_t timeLimit = timeLimitPerDev*numDevs;
+		uint64_t timeLimitRemainder = 0;
+	#elif (TIME_LIMIT_TOTAL==1)
 		uint64_t timeLimit = DEFAULT_TIME_LIMIT;
 		if(argc>2) {
 			timeLimit = atol(argv[2]);
@@ -39,13 +46,17 @@ int main(int argc, char**argv)
 		uint64_t timeLimit = timeLimitPerDev*numDevs;
 		uint64_t timeLimitRemainder = 0;
 	#endif
-	printf("timeLimit: %lu (%lu/dev, %lu/tran)\n", timeLimit, timeLimitPerDev, timeLimitPerDev/(uint64_t)transitions);
+	#if TIME_TRANSITIONS
+		printf("timeLimit: %lu (%lu/dev, %lu/tran)\n", timeLimit, timeLimitPerDev, timeLimitPerDev/(uint64_t)transitions);
+	#else
+		printf("timeLimit: %lu (%lu/dev, --/tran)\n", timeLimit, timeLimitPerDev);
+	#endif
 
 	struct timeval startAll, finishAll;
 	gettimeofday(&startAll, NULL);
 
 	printf("Creating graph...\n");
-	PGraph<DPhilDevice, DPhilState, None, DPhilMessage> graph;
+	PGraph<DPhilDevice, DPhilState, None, DPhilMessage> graph(XBOXES, YBOXES);
 	for(uint32_t i=0; i<numDevs; i++) {
 		PDeviceId id = graph.newDevice();
 		assert(i == id);
@@ -100,18 +111,21 @@ int main(int argc, char**argv)
 
 	politeSaveStats(&hostLink, "stats.txt");
 
-	uint32_t countLocked = 0;
+	//uint32_t countLocked = 0;
+	uint64_t countFired = 0;
 	for(uint32_t i = 0; i < graph.numDevices; i++) {
 		PMessage<DPhilMessage> msg;
 		hostLink.recvMsg(&msg, sizeof(msg));
 		if(i == 0) {
 			gettimeofday(&finishCompute, NULL);
-			printf("%d steps, %d\n", msg.payload.dev, msg.payload.place);
+			//printf("%d steps, %d\n", msg.payload.dev, msg.payload.place);
 		}
-		if(msg.payload.dev < timeLimitPerDev)
-			countLocked++;
+		//if(msg.payload.dev < timeLimitPerDev)
+		//	countLocked++;
+		countFired += (uint64_t)msg.payload.dev + ((uint64_t)msg.payload.place << 32L);
 	}
-	printf("Locked %d of %d\n", countLocked, graph.numDevices);
+	//printf("Locked %d of %d\n", countLocked, graph.numDevices);
+	printf("Total transitions fired: %lu\n", countFired);
 
 	struct timeval diff;
 	double duration;

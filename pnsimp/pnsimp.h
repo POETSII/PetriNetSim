@@ -1,5 +1,5 @@
-#ifndef _DHIL_H_
-#define _DHIL_H_
+#ifndef _PNSIMP_H_
+#define _PNSIMP_H_
 
 #define POLITE_DUMP_STATS
 #define POLITE_COUNT_MSGS
@@ -9,10 +9,13 @@
 #define UNFOLD_FOR_INOUT 1
 #define NO_RANDOM 0
 #define TIME_TRANSITIONS 0
+#define INTERLEAVING_SEMANTIC 0
+
+#define MAX_TRANS_CONNECTS 4
 
 struct Transition {
 	uint8_t type;
-	uint16_t p[4];
+	uint16_t p[MAX_TRANS_CONNECTS];
 };
 
 struct OutMap {
@@ -22,12 +25,12 @@ struct OutMap {
 
 #include "dphil_tmap.h"
 
-struct DPhilMessage {
+struct PNMessage {
 	uint32_t dev;
 	uint16_t place;
 };
 
-struct DPhilState {
+struct PNState {
 	uint32_t dev;
 	uint32_t time;
 	uint32_t timeLimit;
@@ -42,7 +45,7 @@ struct DPhilState {
 	OutMap outMap[outPlaces];
 };
 
-struct DPhilDevice : PDevice<DPhilState, None, DPhilMessage> {
+struct PNDevice : PDevice<PNState, None, PNMessage> {
 
 	inline void init() {
 		s->time = 0;
@@ -54,14 +57,14 @@ struct DPhilDevice : PDevice<DPhilState, None, DPhilMessage> {
 		*readyToSend = No;
 	}
 
-	inline void recv(DPhilMessage* msg, None* edge) {
+	inline void recv(PNMessage* msg, None* edge) {
 		if(msg->dev==s->dev) {
 			s->places[msg->place] = 1;
 			s->live = 1;
 		}
 	}
 
-	inline void send(volatile DPhilMessage* msg) {
+	inline void send(volatile PNMessage* msg) {
 		*readyToSend = No;
 		if(s->countChanges>0) {
 			for(uint16_t p = localPlaces, op = 0; op<outPlaces; p++, op++) {
@@ -82,21 +85,20 @@ struct DPhilDevice : PDevice<DPhilState, None, DPhilMessage> {
 		if(!s->live || s->time>=s->timeLimit)
 			return false;
 		
-		uint64_t rand = 0;
-		uint8_t sh = 0;
+		#if !NO_RANDOM
+			uint16_t sh[transitions];
+			for(uint16_t i=0; i<transitions; i++)
+				sh[i] = i;
+		#endif
+		
 		for(uint16_t ti = 0; ti<transitions; ti++) {
 			#if NO_RANDOM
 				const Transition* t = &tmap[ti];
 			#else
-				if(!(ti&3)) {
-					rand >>= 2;
-					if(!rand) {
-						s->seed = (s->seed * 0x5DEECE66DLL + 0xBLL) & ((1LL << 48LL) - 1LL);
-						rand = s->seed>>4;
-					}
-					sh = (uint8_t)(rand&0x3);
-				}
-				const Transition* t = &tmap[ti^sh];
+				s->seed = (s->seed * 0x5DEECE66DLL + 0xBLL) & ((1LL << 48LL) - 1LL);
+				uint16_t x = (uint16_t)((uint32_t)(s->seed>>16L) % (uint32_t)(transitions-ti));
+				const Transition* t = &tmap[sh[ti+x]];
+				sh[ti+x] = sh[ti];
 			#endif
 			if(t->type==0)
 				continue;
@@ -178,6 +180,10 @@ struct DPhilDevice : PDevice<DPhilState, None, DPhilMessage> {
 					if(s->time>=s->timeLimit)
 						break;
 				#endif
+				
+				#if INTERLEAVING_SEMANTIC
+					break;
+				#endif
 			}
 		}
 
@@ -210,7 +216,7 @@ struct DPhilDevice : PDevice<DPhilState, None, DPhilMessage> {
 			return false;
 	}
 
-	inline bool finish(volatile DPhilMessage* msg) {
+	inline bool finish(volatile PNMessage* msg) {
 		msg->dev = (uint32_t)(s->countFired & 0xffffffffL);
 		msg->place = (uint16_t)(s->countFired>>32L);
 		return true;
