@@ -1,9 +1,15 @@
 #ifndef _DPHIL_TMAP_H_
 #define _DPHIL_TMAP_H_
 
+#define TMAP_NAME "DPHIL"
+
 const uint16_t localPlaces = 1000;
 const uint8_t outPlaces = 3;
 const uint16_t transitions = 600; // (12 aligned to 4) x 50 steps
+
+#if (MAX_TRANS_CONNECTS<4)
+#error "not enough connectivity in Transition"
+#endif
 
 const Transition tmap[transitions] = {
 	// {0xoi, inp-s, outp-s}

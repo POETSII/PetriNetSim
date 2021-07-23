@@ -1,5 +1,5 @@
 #include "pnsimp.h"
-#include "dphil_pinit.h"
+#include "pipe_pinit.h"
 
 #include <HostLink.h>
 #include <POLite.h>
@@ -17,6 +17,12 @@
 
 int main(int argc, char**argv)
 {
+	if(strcmp(TMAP_NAME, PINIT_NAME)) {
+		printf("TMAP_NAME!=PINIT_NAME");
+		exit(1);
+	}
+	printf("net: %s\n", TMAP_NAME);
+	
 	uint32_t numDevs = DEFAULT_NUM_DEVS;
 	if(argc>1) {
 		numDevs = atoi(argv[1]);
@@ -51,6 +57,8 @@ int main(int argc, char**argv)
 	#else
 		printf("timeLimit: %lu (%lu/dev, --/tran)\n", timeLimit, timeLimitPerDev);
 	#endif
+
+	printf("UNFOLD_FOR_INOUT=%d; NO_RANDOM=%d; INTERLEAVING_SEMANTIC=%d\n", UNFOLD_FOR_INOUT, NO_RANDOM, INTERLEAVING_SEMANTIC);
 
 	struct timeval startAll, finishAll;
 	gettimeofday(&startAll, NULL);

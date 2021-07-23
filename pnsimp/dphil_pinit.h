@@ -1,6 +1,8 @@
 #ifndef _DPHIL_PINIT_H_
 #define _DPHIL_PINIT_H_
 
+#define PINIT_NAME "DPHIL"
+
 // Places:
 // 0: ccw_before_put_left_fork
 // 1*: ccw_left_hand_empty

@@ -9,9 +9,9 @@
 #define UNFOLD_FOR_INOUT 1
 #define NO_RANDOM 0
 #define TIME_TRANSITIONS 0
-#define INTERLEAVING_SEMANTIC 0
+#define INTERLEAVING_SEMANTIC 1
 
-#define MAX_TRANS_CONNECTS 4
+#define MAX_TRANS_CONNECTS 6
 
 struct Transition {
 	uint8_t type;
@@ -23,7 +23,7 @@ struct OutMap {
 	uint16_t place;
 };
 
-#include "dphil_tmap.h"
+#include "pipe_tmap.h"
 
 struct PNMessage {
 	uint32_t dev;
