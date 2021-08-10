@@ -55,10 +55,10 @@ int main(int argc, char**argv)
 	#if TIME_TRANSITIONS
 		printf("timeLimit: %lu (%lu/dev, %lu/tran)\n", timeLimit, timeLimitPerDev, timeLimitPerDev/(uint64_t)transitions);
 	#else
-		printf("timeLimit: %lu (%lu/dev, --/tran)\n", timeLimit, timeLimitPerDev);
+		printf("timeLimit: %lu/dev\n", timeLimitPerDev);
 	#endif
 
-	printf("UNFOLD_FOR_INOUT=%d; NO_RANDOM=%d; INTERLEAVING_SEMANTIC=%d\n", UNFOLD_FOR_INOUT, NO_RANDOM, INTERLEAVING_SEMANTIC);
+	printf("UNFOLD_FOR_INOUT=%d; RANDOM_MODE=%d; INTERLEAVING_SEMANTIC=%d\n", UNFOLD_FOR_INOUT, RANDOM_MODE, INTERLEAVING_SEMANTIC);
 
 	struct timeval startAll, finishAll;
 	gettimeofday(&startAll, NULL);

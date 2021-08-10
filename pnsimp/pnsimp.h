@@ -7,11 +7,13 @@
 #include <POLite.h>
 
 #define UNFOLD_FOR_INOUT 1
-#define NO_RANDOM 0
+#define RANDOM_MODE 1
 #define TIME_TRANSITIONS 0
 #define INTERLEAVING_SEMANTIC 1
 
 #define MAX_TRANS_CONNECTS 6
+#define RANDOM_BITS 2
+#define RANDOM_MASK ((1<<RANDOM_BITS)-1)
 
 struct Transition {
 	uint8_t type;
@@ -85,20 +87,35 @@ struct PNDevice : PDevice<PNState, None, PNMessage> {
 		if(!s->live || s->time>=s->timeLimit)
 			return false;
 		
-		#if !NO_RANDOM
+		#if (RANDOM_MODE==2)
+			uint64_t rand = 0;
+			uint8_t sh = 0;
+		#elif (RANDOM_MODE==1)
 			uint16_t sh[transitions];
 			for(uint16_t i=0; i<transitions; i++)
 				sh[i] = i;
 		#endif
 		
 		for(uint16_t ti = 0; ti<transitions; ti++) {
-			#if NO_RANDOM
-				const Transition* t = &tmap[ti];
-			#else
+			#if (RANDOM_MODE==2)
+				if(!(ti&RANDOM_MASK)) {
+					rand >>= RANDOM_BITS;
+					if(!rand) {
+						s->seed = (s->seed * 0x5DEECE66DLL + 0xBLL) & ((1LL << 48LL) - 1LL);
+						rand = s->seed>>4;
+					}
+					sh = (uint8_t)(rand&RANDOM_MASK);
+				}
+				if((ti^sh)>=transitions)
+					continue;
+				const Transition* t = &tmap[ti^sh];
+			#elif (RANDOM_MODE==1)
 				s->seed = (s->seed * 0x5DEECE66DLL + 0xBLL) & ((1LL << 48LL) - 1LL);
 				uint16_t x = (uint16_t)((uint32_t)(s->seed>>16L) % (uint32_t)(transitions-ti));
 				const Transition* t = &tmap[sh[ti+x]];
 				sh[ti+x] = sh[ti];
+			#else
+				const Transition* t = &tmap[ti];
 			#endif
 			if(t->type==0)
 				continue;
