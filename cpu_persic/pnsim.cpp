@@ -176,7 +176,7 @@ void generateTMap(uint32_t isteps, uint32_t jsteps) {
 }
 
 void generateTMap(uint32_t steps) {
-	generateTMap(46, steps/46);
+	generateTMap(4, steps/4);
 }
 
 #endif
@@ -195,7 +195,7 @@ void printState(PNSimState* s, bool mark, uint64_t np, uint64_t nt) {
 	}
 	printf("  ");
 	for(uint32_t t=0; t<nt; t++) {
-		printf("%hhd", s->prevTen[t]);
+		printf("%hhd", s->tenabled[t]);
 	}
 	printf(" %d", s->lastFired);
 	if(mark)
@@ -207,6 +207,7 @@ void printState(PNSimState* s, bool mark, uint64_t np, uint64_t nt) {
 
 int main(int argc, char**argv)
 {
+	printf("Persistency checked PN sim\n");
 	printf("net: %s\n", TMAP_NAME);
 	printf("UNFOLD_FOR_INOUT=%d; RANDOM_MODE=%d; INTERLEAVING_SEMANTIC=%d\n", UNFOLD_FOR_INOUT, RANDOM_MODE, INTERLEAVING_SEMANTIC);
 	
@@ -230,16 +231,15 @@ int main(int argc, char**argv)
 	uint64_t prevHaz = 0;
 	for(t = 0; t<timeLimit; t++) {
 		if(!step(&pn)) break;
-		printState(&pn, pn.countHazard!=prevHaz, numPlaces, transitions);
+		//printf("%d\t", t);
+		//printState(&pn, pn.countHazard!=prevHaz, numPlaces, transitions);
 		prevHaz = pn.countHazard;
 	}
 	gettimeofday(&finishCompute, NULL);
 	
 	printf("Finished. Time steps: %d / %d\n", t, timeLimit);
 	printf("Transitions fired: %ld\n", pn.countFired);
-	#if PERSIST_CHECK
-		printf("Hazards: %ld\n", pn.countHazard);
-	#endif
+	printf("Hazards: %ld\n", pn.countHazard);
 	
 	struct timeval diff;
 	double duration;
@@ -251,9 +251,7 @@ int main(int argc, char**argv)
 		printf("\nFULL COUNT:\n\n");
 		for(uint32_t i=0; i<transitions; i++) {
 			printf("%u\t%lu", i, pn.fullCountFired[i]);
-			#if PERSIST_CHECK
-				printf("\t%lu", pn.fullCountHazard[i]);
-			#endif
+			printf("\t%lu", pn.fullCountHazard[i]);
 			printf("\n");
 		}
 	#endif

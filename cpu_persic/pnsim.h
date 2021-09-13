@@ -7,8 +7,7 @@
 #define RANDOM_MODE 1
 #define INTERLEAVING_SEMANTIC 1
 
-#define PERSIST_CHECK 1
-#define FULL_COUNT 0
+#define FULL_COUNT 1
 
 #define MAX_TRANS_CONNECTS 6
 #define RANDOM_BITS 2
@@ -29,14 +28,10 @@ struct PNSimState {
 	uint8_t* places;
 	uint8_t* changed;
 	uint32_t* sh;
-#if PERSIST_CHECK
-	uint8_t* prevTen;
+	uint8_t* tenabled;
 	uint64_t countHazard;
-#endif
 #if FULL_COUNT
 	uint64_t* fullCountFired;
-#endif
-#if FULL_COUNT && PERSIST_CHECK
 	uint64_t* fullCountHazard;
 #endif
 	uint32_t lastFired;
@@ -54,18 +49,14 @@ void init(PNSimState* s) {
 		for(uint32_t i=0; i<transitions; i++)
 			s->sh[i] = i;
 	#endif
-	#if PERSIST_CHECK
-		s->prevTen = new uint8_t[transitions];
-		for(uint32_t i=0; i<transitions; i++)
-			s->prevTen[i] = 0;
-		s->countHazard = 0;
-	#endif
+	s->tenabled = new uint8_t[transitions];
+	for(uint32_t i=0; i<transitions; i++)
+		s->tenabled[i] = 0;
+	s->countHazard = 0;
 	#if FULL_COUNT
 		s->fullCountFired = new uint64_t[transitions];
 		for(uint32_t i=0; i<transitions; i++)
 			s->fullCountFired[i] = 0;
-	#endif
-	#if FULL_COUNT && PERSIST_CHECK
 		s->fullCountHazard = new uint64_t[transitions];
 		for(uint32_t i=0; i<transitions; i++)
 			s->fullCountHazard[i] = 0;
@@ -79,9 +70,50 @@ bool step(PNSimState* s) {
 	#endif
 	uint32_t idx;
 	
-	#if PERSIST_CHECK && INTERLEAVING_SEMANTIC
+	#if INTERLEAVING_SEMANTIC
 		uint8_t fired = 0;
 	#endif
+
+	for(uint32_t ti = 0; ti<transitions; ti++) {
+		idx = ti;
+		const Transition* t = &tmap[idx];
+		if(t->type==0)
+			continue;
+		uint8_t ins = t->type&0x0f;
+		uint8_t enabled = 1;
+		#if UNFOLD_FOR_INOUT
+			switch(ins) {
+				case 1:
+					if(!s->places[t->p[0]])
+						enabled = 0;
+					break;
+				case 2:
+					if(!(s->places[t->p[0]] && s->places[t->p[1]]))
+						enabled = 0;
+					break;
+				case 3:
+					if(!(s->places[t->p[0]] && s->places[t->p[1]] && s->places[t->p[2]]))
+						enabled = 0;
+					break;
+			}
+		#else
+			for(uint8_t in=0; in<ins; in++) {
+				if(!s->places[t->p[in]]) {
+					enabled = 0;
+					break;
+				}
+			}
+		#endif
+		
+		if(!enabled && s->tenabled[idx]) {
+			s->countHazard++;
+			#if FULL_COUNT
+				s->fullCountHazard[idx]++;
+			#endif
+			s->lastHazard = idx;
+		}
+		s->tenabled[idx] = enabled;
+	}
 
 	for(uint32_t ti = 0; ti<transitions; ti++) {
 		#if (RANDOM_MODE==2)
@@ -106,55 +138,12 @@ bool step(PNSimState* s) {
 			idx = ti;
 		#endif
 			const Transition* t = &tmap[idx];
-			
 		if(t->type==0)
 			continue;
 		
-		uint8_t ins = t->type&0x0f;
-		uint8_t enabled = 1;
-		#if UNFOLD_FOR_INOUT
-			switch(ins) {
-				case 1:
-					if(!s->places[t->p[0]])
-						enabled = false;
-					break;
-				case 2:
-					if(!(s->places[t->p[0]] && s->places[t->p[1]]))
-						enabled = false;
-					break;
-				case 3:
-					if(!(s->places[t->p[0]] && s->places[t->p[1]] && s->places[t->p[2]]))
-						enabled = false;
-					break;
-			}
-		#else
-			for(uint8_t in=0; in<ins; in++) {
-				if(!s->places[t->p[in]]) {
-					enabled = 0;
-					break;
-				}
-			}
-		#endif
-
-		#if PERSIST_CHECK
-			if(!enabled && s->prevTen[idx]) {
-				s->countHazard++;
-				#if FULL_COUNT
-					s->fullCountHazard[idx]++;
-				#endif
-				s->lastHazard = idx;
-			}
-			s->prevTen[idx] = enabled;
-		#endif
-		
-		#if PERSIST_CHECK && INTERLEAVING_SEMANTIC
-			if(enabled && !fired) {
-		#else
-			if(enabled) {
-		#endif
-			#if PERSIST_CHECK
-				s->prevTen[idx] = 0;
-			#endif
+		if(s->tenabled[idx]) {
+			s->tenabled[idx] = 0;
+			uint8_t ins = t->type&0x0f;
 			#if UNFOLD_FOR_INOUT
 				switch(ins) {
 					case 1:
@@ -203,9 +192,7 @@ bool step(PNSimState* s) {
 				s->fullCountFired[idx]++;
 			#endif
 			
-			#if PERSIST_CHECK && INTERLEAVING_SEMANTIC
-				fired = 1;
-			#elif INTERLEAVING_SEMANTIC
+			#if INTERLEAVING_SEMANTIC
 				break;
 			#endif
 		}
