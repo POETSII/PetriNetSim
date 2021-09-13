@@ -25,7 +25,7 @@ struct OutMap {
 	uint16_t place;
 };
 
-#include "pipe_tmap.h"
+#include "hype_tmap.h"
 
 struct PNMessage {
 	uint32_t dev;

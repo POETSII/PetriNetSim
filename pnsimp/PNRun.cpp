@@ -1,5 +1,5 @@
 #include "pnsimp.h"
-#include "pipe_pinit.h"
+#include "hype_pinit.h"
 
 #include <HostLink.h>
 #include <POLite.h>
